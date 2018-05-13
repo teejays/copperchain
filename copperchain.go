@@ -58,6 +58,8 @@ func runServer() error {
 	return server.ListenAndServe()
 }
 
+// handleGetBlockChain listens for GET requests and serves the existing
+// blockchain.
 func handleGetBlockChain(w http.ResponseWriter, r *http.Request) {
 	response, err := json.Marshal(copperChain)
 	if err != nil {
@@ -67,6 +69,9 @@ func handleGetBlockChain(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
+// handleWriteBlock listens for POST requests with payload that is
+// a valid BlockData. It creates a new Block for that data and adds
+// it to the blockchain.
 func handleWriteBlock(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {

@@ -13,11 +13,16 @@ import (
 * B L O C K   C H A I N  								 *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+// BlockChain type implements a thread safe version of a chain.
+// The blocks are stored in the Chain field.
 type BlockChain struct {
 	Chain []Block
 	Lock  sync.RWMutex
 }
 
+// LoadBlockChain reads the already saved blockchain data from the
+// database. We use this function to make sure that we can use the
+// previously saved instance of the chain upon startup.
 func LoadBlockChain() (*BlockChain, error) {
 	var chain BlockChain
 	db := gofiledb.GetClient()
@@ -28,11 +33,15 @@ func LoadBlockChain() (*BlockChain, error) {
 	return &chain, nil
 }
 
+// Save the instance of blockchain into the database.
 func (chain *BlockChain) Save() error {
 	db := gofiledb.GetClient()
 	return db.SetStruct("blockchain", "blockchain_v1", chain)
 }
 
+// GetLastBlock provides the last block in the block chain. This is
+// usually the parent of any incoming new block. Use useLock as true in
+// order to execute this function in a threadsafe way.
 func (chain *BlockChain) GetLastBlock(useLock bool) (*Block, error) {
 	lenChain := len(chain.Chain)
 	if lenChain == 0 {
@@ -41,6 +50,9 @@ func (chain *BlockChain) GetLastBlock(useLock bool) (*Block, error) {
 	return chain.GetBlockByIndex(lenChain-1, useLock)
 }
 
+// GetBlockByIndex provides the block tat resides at the given index in
+// the blockchain. Use useLock as true in  order to execute this
+// function in a threadsafe way.
 func (chain *BlockChain) GetBlockByIndex(index int, useLock bool) (*Block, error) {
 	if index < 0 {
 		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is not valid", index)
@@ -58,6 +70,8 @@ func (chain *BlockChain) GetBlockByIndex(index int, useLock bool) (*Block, error
 	return &block, nil
 }
 
+// AddBlock adds a new block into the blockchain. In the process is
+// runs some validation to ensure the integrity of the blockchain.
 func (chain *BlockChain) AddBlock(block Block) error {
 
 	// validate the block fields
@@ -85,7 +99,9 @@ func (chain *BlockChain) AddBlock(block Block) error {
 	return nil
 }
 
-// IsBlockValid takes the index representing the location of a block in the chain, and checks whether that block is valid.
+// IsBlockValid takes the index representing the location of a block in
+// the chain, and checks whether that block has valid fields, and
+// adheres to it's relationship with its parent block.
 func (chain *BlockChain) ValidateBlockAtIndex(index int) error {
 
 	block, err := chain.GetBlockByIndex(index, true)
@@ -111,24 +127,11 @@ func (chain *BlockChain) ValidateBlockAtIndex(index int) error {
 	return nil
 }
 
-func (b *Block) ValidateBlockWithParent(parent *Block) error {
-	if parent == nil {
-		fmt.Println("Request made to ValidateBlockWithParent with a nil parent. Is it the first ever block in the chain?")
-		return nil
-	}
-	if b.Index != parent.Index+1 {
-		return fmt.Errorf("index '%d' is not equal to 1 + index of parent '%d'", b.Index, parent.Index)
-	}
-	if b.PrevHash != parent.Hash {
-		return fmt.Errorf("hash does not match parent hash")
-	}
-	return nil
-}
-
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 * B L O C K 			  								 *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+// Block is the primary unit of a BlockChain.
 type Block struct {
 	Index     int
 	Timestamp time.Time
@@ -137,8 +140,13 @@ type Block struct {
 	PrevHash  string
 }
 
+// BlockData represents the structure in which data in the blockchain can
+// stored. It is defined as a map[string]interface{} to allow for
+// flexibility on what and how much data could be contained in the block.
 type BlockData map[string]interface{}
 
+// NewBlock returns an instance of a Block initialized with the provided
+// data and the parent block.
 func NewBlock(data BlockData, parent *Block) (*Block, error) {
 	// verify that the data is valid for the new block
 	if data == nil {
@@ -159,6 +167,8 @@ func NewBlock(data BlockData, parent *Block) (*Block, error) {
 	return &b, nil
 }
 
+// calculateHash takes into account all the fields of the block to
+// create a string representation of a hash that is unique to it.
 func (b *Block) calculateHash() string {
 	// create a string representation of the block
 	// one way to do that is to concatenate the string representation of the individual fields
@@ -171,6 +181,23 @@ func (b *Block) calculateHash() string {
 	return string(hashed)
 }
 
+// ValidateBlockWithParent checks whether a block adheres to it's
+// relationship with its parent block.
+func (b *Block) ValidateBlockWithParent(parent *Block) error {
+	if parent == nil {
+		fmt.Println("Request made to ValidateBlockWithParent with a nil parent. Is it the first ever block in the chain?")
+		return nil
+	}
+	if b.Index != parent.Index+1 {
+		return fmt.Errorf("index '%d' is not equal to 1 + index of parent '%d'", b.Index, parent.Index)
+	}
+	if b.PrevHash != parent.Hash {
+		return fmt.Errorf("hash does not match parent hash")
+	}
+	return nil
+}
+
+// ValidateFields ensures that the fields of a block have valid values.
 func (b *Block) ValidateFields() error {
 	var errors []error
 	if b.Index < 0 {
