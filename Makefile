@@ -6,5 +6,5 @@ clean:
 	rm $(BINARY_NAME)
 build:
 	$(GOBUILD) -o $(BINARY_NAME)
-run:
-	./$(BINARY_NAME)
+run-example:
+	cd example && $(GOBUILD) -o example && ./example

@@ -1,109 +1,48 @@
-package main // import "github.com/teejays/copperchain"
+package copperchain // import "github.com/teejays/copperchain"
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/gorilla/mux"
 	"github.com/teejays/gofiledb"
-	go_up "github.com/ufoscout/go-up"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"time"
 )
 
-var copperChain *BlockChain
-var up go_up.GoUp
+var copperChain *BlockChainAtomic
 
-func main() {
-	// Load environment variables
+type Options struct {
+	DataRoot string
+}
+
+var defaultOptions Options = Options{
+	DataRoot: ".data",
+}
+
+var isInitiated bool
+
+func Init(options Options) {
+
+	// Validate the options, and resort to default when needed
+	if options.DataRoot == "" {
+		fmt.Printf("empty DataRoot passed in options for copperchain, defaulting to %s.", defaultOptions.DataRoot)
+		options.DataRoot = defaultOptions.DataRoot
+	}
+
+	// Initiate GoFiledb so blockchain instances can be saved
+	gofiledb.InitClient(options.DataRoot)
+
+	// Read the saved blockchain using GoFileDb and put as the global chain
+	var newCopperChain BlockChainAtomic
 	var err error
-	up, err = go_up.NewGoUp().AddFile("./.env", false).Build()
+	newCopperChain.Chain, err = loadBlockChainFromDb()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
+	copperChain = &newCopperChain
 
-	// Set up DB client to store the block chain when the server is off
-	dbRoot := up.GetStringOrDefault("db.root", ".data")
-	gofiledb.InitClient(dbRoot)
+	// set this variable so other functions can know that the package has been initiated properly
+	isInitiated = true
 
-	// Load the blockchain
-	copperChain, err = LoadBlockChain()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = runServer()
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
-func runServer() error {
-	// Start the webserver
-	port := up.GetIntOrDefault("server.port", 8080)
-	addr := up.GetString("server.address")
-	router := mux.NewRouter()
-	router.HandleFunc("/", handleGetBlockChain).Methods("GET")
-	router.HandleFunc("/", handleWriteBlock).Methods("POST")
-
-	server := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", addr, port),
-		Handler:      router,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-	fmt.Printf("Server listening on %s:%d...\n", addr, port)
-
-	return server.ListenAndServe()
-}
-
-// handleGetBlockChain listens for GET requests and serves the existing
-// blockchain.
-func handleGetBlockChain(w http.ResponseWriter, r *http.Request) {
-	response, err := json.Marshal(copperChain)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(response)
-}
-
-// handleWriteBlock listens for POST requests with payload that is
-// a valid BlockData. It creates a new Block for that data and adds
-// it to the blockchain.
-func handleWriteBlock(w http.ResponseWriter, r *http.Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	defer r.Body.Close()
-
-	var blockData BlockData
-	err = json.Unmarshal(body, &blockData)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// get the parent
-	parent, err := copperChain.GetLastBlock(true)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	block, err := NewBlock(blockData, parent)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	err = copperChain.AddBlock(*block)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
-	return
+func GetCopperChain() BlockChain {
+	return copperChain.Chain
 }
