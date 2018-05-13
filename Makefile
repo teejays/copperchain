@@ -1,6 +1,6 @@
 GOCMD=go
 GOBUILD=$(GOCMD) build
-BINARY_NAME=copperchain.out
+BINARY_NAME=copperchain
 
 clean:
 	rm $(BINARY_NAME)
