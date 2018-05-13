@@ -9,9 +9,12 @@ import (
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 * B L O C K   C H A I N  								 *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+// BlockChain is made of a slice of Blocks.
 type BlockChain []Block
 
-// BlockChainAtomic type implements a thread safe version of a BlockChain.
+// BlockChainAtomic type implements a thread safe version of a BlockChain. All the
+// struct methods for BlockChain are implemented on BlockChainAtomic.
 type BlockChainAtomic struct {
 	Chain BlockChain
 	Lock  sync.RWMutex
@@ -55,7 +58,7 @@ func (chain *BlockChainAtomic) ValidateBlockAtIndex(index int) error {
 		return err
 	}
 
-	err = block.ValidateFields()
+	err = block.validateFields()
 	if err != nil {
 		return err
 	}
@@ -73,7 +76,7 @@ func (chain *BlockChainAtomic) ValidateBlockAtIndex(index int) error {
 	return nil
 }
 
-// GetLastBlock provides the last block in the block chain. This is
+// GetLastBlock provides the last block in the blockchain. This is
 // usually the parent of any incoming new block. Use useLock as true in
 // order to execute this function in a threadsafe way.
 func (chain *BlockChainAtomic) GetLastBlock(useLock bool) (*Block, error) {
@@ -85,14 +88,14 @@ func (chain *BlockChainAtomic) GetLastBlock(useLock bool) (*Block, error) {
 }
 
 // GetBlockByIndex provides the block tat resides at the given index in
-// the block chain. Use useLock as true in  order to execute this
+// the blockchain. Use useLock as true in  order to execute this
 // function in a threadsafe way.
 func (chain *BlockChainAtomic) GetBlockByIndex(index int, useLock bool) (*Block, error) {
 	if index < 0 {
 		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is not valid", index)
 	}
 	if index >= len(chain.Chain) {
-		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is greater then the length of the block chain '%d'", index, len(chain.Chain))
+		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is greater then the length of the blockchain '%d'", index, len(chain.Chain))
 	}
 	if useLock {
 		chain.Lock.RLock()
@@ -108,7 +111,7 @@ func (chain *BlockChainAtomic) GetBlockByIndex(index int, useLock bool) (*Block,
 * H E L P E R S 		 								 *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-// LoadBlockChain reads the already saved blockchain data from the
+// loadBlockChainFromDb reads the already saved blockchain data from the
 // database. We use this function to make sure that we can use the
 // previously saved instance of the chain upon startup.
 func loadBlockChainFromDb() (BlockChain, error) {
@@ -121,7 +124,7 @@ func loadBlockChainFromDb() (BlockChain, error) {
 	return chain, nil
 }
 
-// Save the instance of blockchain into the database.
+// saveBlockChainToDb saves the instance of blockchain into the database.
 func saveBlockChainToDb(chain BlockChain) error {
 	db := gofiledb.GetClient()
 	return db.SetStruct("blockchain", "blockchain_v1", chain)

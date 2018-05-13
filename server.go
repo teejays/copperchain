@@ -19,8 +19,8 @@ var defaultServerOptions ServerOptions = ServerOptions{
 }
 
 // RunServer starts a webserver on the address provided and listens on two endpoints:
-// 1. GET /: serves the block chain
-// 2. POST /: adds data to the block chain. It accepts a json encoded BlockData as http body.
+// 1. GET /: serves the blockchain
+// 2. POST /: adds data to the blockchain. It accepts a json encoded BlockData as http body.
 func RunServer(options ServerOptions) error {
 
 	// Validate the parameters
@@ -48,8 +48,8 @@ func RunServer(options ServerOptions) error {
 	return server.ListenAndServe()
 }
 
-// HandleGetBlockChain listens for GET requests and serves the existing
-// blockchain.
+// HandleGetBlockChain listens for GET requests and response with the
+// blockchain. This is basically a HTTP getter for blockchain.
 func HandleGetBlockChain(w http.ResponseWriter, r *http.Request) {
 	// Get the BlockChain, json encode it and send it.
 	chain := GetCopperChain()
@@ -62,7 +62,7 @@ func HandleGetBlockChain(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
-// handleWriteBlock listens for POST requests with payload that is
+// HandleWriteBlock listens for POST requests with payload that is
 // a valid BlockData. It creates a new Block for that data and adds
 // it to the blockchain.
 func HandleWriteBlock(w http.ResponseWriter, r *http.Request) {
@@ -81,7 +81,7 @@ func HandleWriteBlock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// add the data to the block chain
+	// add the data to the blockchain
 	err = copperChain.AddBlockData(blockData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -17,7 +17,9 @@ import (
 // flexibility on what and how much data could be contained in the block.
 type BlockData map[string]interface{}
 
-// Block is the primary unit of a BlockChain.
+// Block is the primary unit of a BlockChain. It is linked to the previous block
+// in the blockchain using the PrevHash field, which is the Hash field of its parent
+// block.
 type Block struct {
 	Index     int
 	Timestamp time.Time
@@ -26,7 +28,7 @@ type Block struct {
 	PrevHash  string
 }
 
-// NewBlock returns an instance of a Block initialized with the provided
+// newBlock returns an instance of a Block initialized with the provided
 // data and the parent block.
 func newBlock(data BlockData, parent *Block) (*Block, error) {
 	// verify that the data is valid for the new block
@@ -62,7 +64,7 @@ func (b *Block) calculateHash() string {
 	return hex.EncodeToString(hashed)
 }
 
-// ValidateBlockWithParent checks whether a block adheres to it's
+// validateBlockWithParent checks whether a block adheres to it's
 // relationship with its parent block.
 func (b *Block) validateBlockWithParent(parent *Block) error {
 	if parent == nil {
@@ -78,8 +80,8 @@ func (b *Block) validateBlockWithParent(parent *Block) error {
 	return nil
 }
 
-// ValidateFields ensures that the fields of a block have valid values.
-func (b *Block) ValidateFields() error {
+// validateFields ensures that the fields of a block have valid values.
+func (b *Block) validateFields() error {
 	var errors []error
 	if b.Index < 0 {
 		errors = append(errors, fmt.Errorf("invalid index field %d", b.Index))
