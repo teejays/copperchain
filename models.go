@@ -1,49 +1,145 @@
-package copperchain
+package main
 
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/teejays/gofiledb"
 	"strconv"
+	"sync"
 	"time"
 )
 
-type BlockChain []Block
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* B L O C K   C H A I N  								 *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+type BlockChain struct {
+	Chain []Block
+	Lock  sync.RWMutex
+}
+
+func LoadBlockChain() (*BlockChain, error) {
+	var chain BlockChain
+	db := gofiledb.GetClient()
+	_, err := db.GetStructIfExists("blockchain", "blockchain_v1", &chain)
+	if err != nil {
+		return nil, err
+	}
+	return &chain, nil
+}
+
+func (chain *BlockChain) Save() error {
+	db := gofiledb.GetClient()
+	return db.SetStruct("blockchain", "blockchain_v1", chain)
+}
+
+func (chain *BlockChain) GetLastBlock(useLock bool) (*Block, error) {
+	lenChain := len(chain.Chain)
+	if lenChain == 0 {
+		return nil, nil
+	}
+	return chain.GetBlockByIndex(lenChain-1, useLock)
+}
+
+func (chain *BlockChain) GetBlockByIndex(index int, useLock bool) (*Block, error) {
+	if index < 0 {
+		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is not valid", index)
+	}
+	if index >= len(chain.Chain) {
+		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is greater then the length of the block chain '%d'", index, len(chain.Chain))
+	}
+	if useLock {
+		chain.Lock.RLock()
+	}
+	block := chain.Chain[index]
+	if useLock {
+		chain.Lock.RUnlock()
+	}
+	return &block, nil
+}
+
+func (chain *BlockChain) AddBlock(block Block) error {
+
+	// validate the block fields
+	err := block.ValidateFields()
+	if err != nil {
+		return err
+	}
+
+	chain.Lock.Lock()
+	defer chain.Lock.Unlock()
+
+	parent, err := chain.GetLastBlock(false)
+	if err != nil {
+		return err
+	}
+
+	err = block.ValidateBlockWithParent(parent)
+	if err != nil {
+		return err
+	}
+
+	chain.Chain = append(chain.Chain, block)
+	chain.Save()
+
+	return nil
+}
 
 // IsBlockValid takes the index representing the location of a block in the chain, and checks whether that block is valid.
-func (chain BlockChain) IsBlockValid(index int) bool {
-	block := chain[index]
-	if block.Index != index {
-		return false
+func (chain *BlockChain) ValidateBlockAtIndex(index int) error {
+
+	block, err := chain.GetBlockByIndex(index, true)
+	if err != nil {
+		return err
 	}
-	// if it's the first element
-	if index < 1 {
-		return true
+
+	err = block.ValidateFields()
+	if err != nil {
+		return err
 	}
-	// else, we should chech block's integrity respecctive to it's parent
-	parent := chain[index-1]
-	if block.PrevHash != parent.Hash {
-		return false
+
+	parent, err := chain.GetBlockByIndex(index-1, true)
+	if err != nil {
+		return err
 	}
-	if block.calculateHash() != block.Hash {
-		return false
+
+	err = block.ValidateBlockWithParent(parent)
+	if err != nil {
+		return err
 	}
-	return true
+
+	return nil
 }
+
+func (b *Block) ValidateBlockWithParent(parent *Block) error {
+	if parent == nil {
+		fmt.Println("Request made to ValidateBlockWithParent with a nil parent. Is it the first ever block in the chain?")
+		return nil
+	}
+	if b.Index != parent.Index+1 {
+		return fmt.Errorf("index '%d' is not equal to 1 + index of parent '%d'", b.Index, parent.Index)
+	}
+	if b.PrevHash != parent.Hash {
+		return fmt.Errorf("hash does not match parent hash")
+	}
+	return nil
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* B L O C K 			  								 *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 type Block struct {
 	Index     int
 	Timestamp time.Time
-	Data      interface{}
+	Data      BlockData
 	Hash      string
 	PrevHash  string
 }
 
-func NewBlock(parent Block, data interface{}) (*Block, error) {
-	// verify that parent block is valid
-	err := parent.ValidateFields()
-	if err != nil {
-		return nil, err
-	}
+type BlockData map[string]interface{}
+
+func NewBlock(data BlockData, parent *Block) (*Block, error) {
 	// verify that the data is valid for the new block
 	if data == nil {
 		return nil, fmt.Errorf("attempted to create a new block with nil data")
@@ -51,11 +147,13 @@ func NewBlock(parent Block, data interface{}) (*Block, error) {
 
 	// create a new block
 	var b Block
-	b.Index = parent.Index + 1
 	b.Timestamp = time.Now()
-	// do not store a pointer I guess, because pointer data can be changed outside the block chain
 	b.Data = data
-	b.PrevHash = parent.Hash
+	if parent != nil {
+		b.Index = parent.Index + 1
+		b.PrevHash = parent.Hash
+	}
+
 	b.Hash = b.calculateHash()
 
 	return &b, nil
@@ -87,9 +185,9 @@ func (b *Block) ValidateFields() error {
 	if b.Hash == "" {
 		errors = append(errors, fmt.Errorf("empty hash field"))
 	}
-	// if b.PrevHash == "" {
-	// 	errors = append(errors, fmt.Error("empty previous hash field"))
-	// }
+	if b.Hash != b.calculateHash() {
+		errors = append(errors, fmt.Errorf("unexpected hash"))
+	}
 
 	if len(errors) < 1 {
 		return nil
