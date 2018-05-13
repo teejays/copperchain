@@ -65,7 +65,7 @@ func main() {
 		DataRoot: ".data", 
 	})
 	
-    // Get CopperChain
+    	// Get CopperChain
 	chain := copperchain.GetCopperChain()
 	fmt.Printf("Chain: %+v\n", chain)
 
