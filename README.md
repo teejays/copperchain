@@ -36,14 +36,14 @@ chain := copperchain.GetCopperChain()
 You can add a block to the blockchain by calling the AddToCopperChain() method, which requires a parameter of the form map[string]interface. This allows for flexibility of data that can be kept in the block.
 ```go
 data := make(map[string]interface{})
-data["transaction+id"] = "abc123"
+data["transaction_id"] = "abc123"
 err := copperchain.AddToCopperChain(data)
 ```
 
 If you want to set up the blockchain as RESTful API, you can call the RunSerever() method, which takes some options around the server address on which to rum the server. 
 ```go
 err := copperchain.RunServer(copperchain.ServerOptions{
-		Host: "127.0.0.1, //optional
+		Host: "127.0.0.1", //optional
 		Port: 8080, // default 8080
 	})
 ```
