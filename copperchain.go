@@ -1,5 +1,5 @@
 // Copperchain implements a basic blockchain in GoLang. It provides the
-// blockchain as a package, with an optional functionlaity to starting a server.
+// blockchain as a package, with an optional functionality to starting a server.
 // Sample usage of copperchain package is provided in github.com/teejays/copperchain/example
 package copperchain // import "github.com/teejays/copperchain"
 
@@ -54,4 +54,18 @@ func Init(options Options) {
 // method that allows access to the chain from outside this package.
 func GetCopperChain() BlockChain {
 	return copperChain.Chain
+}
+
+// AddBlockToCopperChain is a getter method to access the blockchain. This is the only exported
+// method that allows access to the chain from outside this package.
+func AddToCopperChain(data map[string]interface{}) error {
+	blockData := BlockData(data)
+	// if !ok {
+	// 	return fmt.Errorf("error while converting data into type BlockData")
+	// }
+	err := copperChain.AddBlockData(blockData)
+	if err != nil {
+		return err
+	}
+	return nil
 }
