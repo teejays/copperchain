@@ -28,26 +28,36 @@ type Block struct {
 	PrevHash  string
 }
 
+func getGenesisBlock() Block {
+	return Block{
+		Index:     0,
+		Timestamp: time.Now(),
+		Data:      BlockData{},
+		Hash:      "",
+		PrevHash:  "",
+	}
+}
+
 // newBlock returns an instance of a Block initialized with the provided
 // data and the parent block.
-func newBlock(data BlockData, parent *Block) (*Block, error) {
+func generateBlock(previousBlock Block, data BlockData) (Block, error) {
+	var newBlock Block
+
 	// verify that the data is valid for the new block
 	if data == nil {
-		return nil, fmt.Errorf("attempted to create a new block with nil data")
+		return newBlock, fmt.Errorf("attempted to create a new block with nil data")
 	}
 
 	// create a new block
-	var b Block
-	b.Timestamp = time.Now()
-	b.Data = data
-	if parent != nil {
-		b.Index = parent.Index + 1
-		b.PrevHash = parent.Hash
-	}
 
-	b.Hash = b.calculateHash()
+	newBlock.Timestamp = time.Now()
+	newBlock.Data = data
+	newBlock.Index = previousBlock.Index + 1
+	newBlock.PrevHash = previousBlock.Hash
 
-	return &b, nil
+	newBlock.Hash = newBlock.calculateHash()
+
+	return newBlock, nil
 }
 
 // calculateHash takes into account all the fields of the block to
@@ -66,15 +76,11 @@ func (b *Block) calculateHash() string {
 
 // validateBlockWithParent checks whether a block adheres to it's
 // relationship with its parent block.
-func (b *Block) validateBlockWithParent(parent *Block) error {
-	if parent == nil {
-		fmt.Println("Request made to ValidateBlockWithParent with a nil parent. Is it the first ever block in the chain?")
-		return nil
+func (b *Block) validateBlockWithParent(previousBlock Block) error {
+	if b.Index != previousBlock.Index+1 {
+		return fmt.Errorf("index '%d' is not equal to 1 + index of previous block '%d'", b.Index, previousBlock.Index)
 	}
-	if b.Index != parent.Index+1 {
-		return fmt.Errorf("index '%d' is not equal to 1 + index of parent '%d'", b.Index, parent.Index)
-	}
-	if b.PrevHash != parent.Hash {
+	if b.PrevHash != previousBlock.Hash {
 		return fmt.Errorf("hash does not match parent hash")
 	}
 	return nil

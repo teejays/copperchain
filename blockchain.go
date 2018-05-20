@@ -17,33 +17,44 @@ type BlockChain []Block
 // struct methods for BlockChain are implemented on BlockChainAtomic.
 type BlockChainAtomic struct {
 	Chain BlockChain
-	Lock  sync.RWMutex
+	sync.RWMutex
 }
 
-// AddBlock adds a new block into the blockchain with the provided blockData. In the process is
-// runs some validation to ensure the integrity of the blockchain.
-func (chain *BlockChainAtomic) AddBlockData(blockData BlockData) error {
-	// we should lock the chain so other threads don't mess with it while we're adding a block
-	chain.Lock.Lock()
-	defer chain.Lock.Unlock()
+func (chain *BlockChainAtomic) Length() int {
+	return len(chain.Chain)
+}
 
-	// get the parent first block first
-	parent, err := copperChain.GetLastBlock(false)
+// // AddBlock adds a new block into the blockchain with the provided blockData. In the process is
+// // runs some validation to ensure the integrity of the blockchain.
+// func (chain *BlockChainAtomic) AddBlockData(blockData BlockData) error {
+
+// 	// get the parent first block first
+// 	parent, err := copperChain.GetLastBlock(true)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	// create the new Block
+// 	block, err := newBlock(blockData, parent)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	chain.AppendBlock(block)
+
+// 	return nil
+// }
+
+func (chain *BlockChainAtomic) AppendBlock(block Block) error {
+	chain.Lock()
+	defer chain.Unlock()
+	newChain := append(chain.Chain, block)
+
+	err := block.validateBlockWithParent(newChain[len(newChain)-2])
 	if err != nil {
 		return err
 	}
-
-	// create the new Block
-	block, err := newBlock(blockData, parent)
-	if err != nil {
-		return err
-	}
-
-	chain.Chain = append(chain.Chain, *block)
-	err = saveBlockChainToDb(chain.Chain)
-	if err != nil {
-		return err
-	}
+	chain.Chain = newChain
 
 	return nil
 }
@@ -63,12 +74,12 @@ func (chain *BlockChainAtomic) ValidateBlockAtIndex(index int) error {
 		return err
 	}
 
-	parent, err := chain.GetBlockByIndex(index-1, true)
+	previousBlock, err := chain.GetBlockByIndex(index-1, true)
 	if err != nil {
 		return err
 	}
 
-	err = block.validateBlockWithParent(parent)
+	err = block.validateBlockWithParent(previousBlock)
 	if err != nil {
 		return err
 	}
@@ -79,32 +90,33 @@ func (chain *BlockChainAtomic) ValidateBlockAtIndex(index int) error {
 // GetLastBlock provides the last block in the blockchain. This is
 // usually the parent of any incoming new block. Use useLock as true in
 // order to execute this function in a threadsafe way.
-func (chain *BlockChainAtomic) GetLastBlock(useLock bool) (*Block, error) {
-	lenChain := len(chain.Chain)
-	if lenChain == 0 {
-		return nil, nil
+func (chain *BlockChainAtomic) GetLastBlock(useLock bool) (Block, error) {
+	var block Block
+	if chain.Length() == 0 {
+		return block, fmt.Errorf("tThere are no blocks in the chain")
 	}
-	return chain.GetBlockByIndex(lenChain-1, useLock)
+	return chain.GetBlockByIndex(chain.Length()-1, useLock)
 }
 
 // GetBlockByIndex provides the block tat resides at the given index in
 // the blockchain. Use useLock as true in  order to execute this
 // function in a threadsafe way.
-func (chain *BlockChainAtomic) GetBlockByIndex(index int, useLock bool) (*Block, error) {
+func (chain *BlockChainAtomic) GetBlockByIndex(index int, useLock bool) (Block, error) {
+	var block Block
 	if index < 0 {
-		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is not valid", index)
+		return block, fmt.Errorf("index provided for GetBlockByIndex '%d' is not valid", index)
 	}
 	if index >= len(chain.Chain) {
-		return nil, fmt.Errorf("index provided for GetBlockByIndex '%d' is greater then the length of the blockchain '%d'", index, len(chain.Chain))
+		return block, fmt.Errorf("index provided for GetBlockByIndex '%d' is greater then the length of the blockchain '%d'", index, len(chain.Chain))
 	}
 	if useLock {
-		chain.Lock.RLock()
+		chain.RLock()
 	}
-	block := chain.Chain[index]
+	block = chain.Chain[index]
 	if useLock {
-		chain.Lock.RUnlock()
+		chain.RUnlock()
 	}
-	return &block, nil
+	return block, nil
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * *

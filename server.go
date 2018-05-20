@@ -1,10 +1,14 @@
 package copperchain
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"io"
 	"io/ioutil"
+	"log"
+	"net"
 	"net/http"
 	"time"
 )
@@ -14,14 +18,21 @@ type ServerOptions struct {
 	Port int
 }
 
+const DEFAULT_HTTP_PORT int = 8080
+const DEFAULT_TCP_PORT int = 9000
+
 var defaultServerOptions ServerOptions = ServerOptions{
 	Port: 8080,
 }
 
-// RunServer starts a webserver on the address provided and listens on two endpoints:
-// 1. GET /: serves the blockchain
-// 2. POST /: adds data to the blockchain. It accepts a json encoded BlockData as http body.
-func RunServer(options ServerOptions) error {
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* T C P  S E R V E R 			  						 *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+var bcServer chan BlockChain
+
+func RunTcpServer(options ServerOptions) error {
+	bcServer = make(chan BlockChain)
 
 	// Validate the parameters
 	if options.Host == "" {
@@ -29,7 +40,86 @@ func RunServer(options ServerOptions) error {
 	}
 	if options.Port < 1 {
 		fmt.Printf("invalid port  '%d' passed in server, defaulting to port %d.", defaultServerOptions.Port)
-		options.Port = defaultServerOptions.Port
+		options.Port = DEFAULT_TCP_PORT
+	}
+
+	server, err := net.Listen("tcp", fmt.Sprintf("%s:%d", options.Host, options.Port))
+	if err != nil {
+		return err
+	}
+	defer server.Close()
+
+	for {
+		// everytime the server gets a new connection request
+		conn, err := server.Accept()
+		if err != nil {
+			return err
+		}
+		go handleTcpConn(conn)
+	}
+}
+
+func handleTcpConn(conn net.Conn) {
+	defer conn.Close()
+
+	io.WriteString(conn, "Please provide your data:")
+
+	scanner := bufio.NewScanner(conn)
+
+	// start up the process that sends myChain to connections every x seconds
+	go func() {
+		for {
+			time.Sleep(30 * time.Second)
+			myChainBytes, err := json.Marshal(myChain)
+			if err != nil {
+				log.Fatal(err)
+			}
+			io.WriteString(conn, string(myChainBytes))
+		}
+	}()
+
+	// take in data from the TCP connection
+	func() {
+		for scanner.Scan() {
+			fmt.Printf("Data received from %s", conn.LocalAddr())
+			data := scanner.Bytes()
+			var blockData BlockData
+			err := json.Unmarshal(data, &blockData)
+			if err != nil {
+				log.Printf("Error while unmarshalling scanned data: %v", err)
+				continue
+			}
+			err = AddToMyChain(blockData)
+			if err != nil {
+				log.Printf("Error while adding data to chain: %v", err)
+				continue
+			}
+
+			bcServer <- myChain.Chain
+
+			io.WriteString(conn, "Please provide your data:")
+		}
+
+	}()
+
+}
+
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+* H T T P  S E R V E R 			  						 *
+* * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+
+// RunServer starts a webserver on the address provided and listens on two endpoints:
+// 1. GET /: serves the blockchain
+// 2. POST /: adds data to the blockchain. It accepts a json encoded BlockData as http body.
+func RunHttpServer(options ServerOptions) error {
+
+	// Validate the parameters
+	if options.Host == "" {
+		fmt.Printf("empty host passed for server, Go will default to localhost.")
+	}
+	if options.Port < 1 {
+		fmt.Printf("invalid port  '%d' passed in server, defaulting to port %d.", defaultServerOptions.Port)
+		options.Port = DEFAULT_HTTP_PORT
 	}
 
 	// Start the webserver
@@ -52,7 +142,7 @@ func RunServer(options ServerOptions) error {
 // blockchain. This is basically a HTTP getter for blockchain.
 func HandleGetBlockChain(w http.ResponseWriter, r *http.Request) {
 	// Get the BlockChain, json encode it and send it.
-	chain := GetCopperChain()
+	chain := GetMyChain()
 
 	response, err := json.Marshal(chain)
 	if err != nil {
@@ -82,7 +172,7 @@ func HandleWriteBlock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// add the data to the blockchain
-	err = copperChain.AddBlockData(blockData)
+	err = AddToMyChain(blockData)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
