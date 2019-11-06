@@ -7,7 +7,7 @@ Click [here](https://godoc.org/github.com/teejays/copperchain) for code document
 ## Getting Started
 
 ### Prerequisites:
-1) Install GoLang. You can install it from the [official Go website](https://golang.org/).
+1) Install Golang. You can install it from the [official Go website](https://golang.org/).
 2) Install the following Go packages (if you don't have them already):
 	* [GoFiledb](https://github.com/teejays/gofiledb): A micro, very easy to use, DB client that uses filesystem for storage. To install, run: `go get -u github.com/teejays/gofiledb`
 	* [Gorilla Mux](https://github.com/gorilla/mux): A powerful URL router and dispatcher for golang. To install, run: ` go get -u github.com/gorilla/mux`
