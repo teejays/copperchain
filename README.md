@@ -1,6 +1,6 @@
 # CopperChain
 
-CopperChain implements a basic blockchain in GoLang. It treats blockchain as a package, which can be imported by other packages and used. It also has the optional functionality of a web server, which provides basic Get and Post endpoints.
+CopperChain implements a basic blockchain in Golang. It treats blockchain as a package, which can be imported by other packages and used. It also has the optional functionality of a web server, which provides basic Get and Post endpoints.
 
 Click [here](https://godoc.org/github.com/teejays/copperchain) for code documentation.
  
